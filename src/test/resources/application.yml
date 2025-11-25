@@ -67,3 +67,5 @@ client:
     url: http://ai-service
   last-mile-service:
     url: http://last-mile-service
+  hub-driver-service:
+    url: hub-driver-service

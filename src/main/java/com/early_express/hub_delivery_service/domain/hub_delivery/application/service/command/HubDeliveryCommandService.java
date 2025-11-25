@@ -8,6 +8,10 @@ import com.early_express.hub_delivery_service.domain.hub_delivery.domain.model.H
 import com.early_express.hub_delivery_service.domain.hub_delivery.domain.model.vo.HubDeliveryId;
 import com.early_express.hub_delivery_service.domain.hub_delivery.domain.model.vo.HubSegment;
 import com.early_express.hub_delivery_service.domain.hub_delivery.domain.repository.HubDeliveryRepository;
+import com.early_express.hub_delivery_service.domain.hub_delivery.infrastructure.client.hub_driver.HubDriverClient;
+import com.early_express.hub_delivery_service.domain.hub_delivery.infrastructure.client.hub_driver.dto.DriverAssignRequest;
+import com.early_express.hub_delivery_service.domain.hub_delivery.infrastructure.client.hub_driver.dto.DriverAssignResponse;
+import com.early_express.hub_delivery_service.domain.hub_delivery.infrastructure.client.hub_driver.dto.DriverCompleteRequest;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -31,10 +35,11 @@ public class HubDeliveryCommandService {
 
     private final HubDeliveryRepository hubDeliveryRepository;
     private final HubDeliveryEventPublisher eventPublisher;
+    private final HubDriverClient hubDriverClient;
     private final ObjectMapper objectMapper;
 
     /**
-     * 허브 배송 생성
+     * 허브 배송 생성 (드라이버 자동 배정 포함)
      */
     public CreateResult create(CreateCommand command) {
         log.info("허브 배송 생성 - orderId: {}", command.getOrderId());
@@ -59,13 +64,38 @@ public class HubDeliveryCommandService {
                 command.getCreatedBy()
         );
 
-        // 저장
+        // 저장 (ID 생성)
         HubDelivery savedHubDelivery = hubDeliveryRepository.save(hubDelivery);
 
         log.info("허브 배송 생성 완료 - hubDeliveryId: {}, orderId: {}, segments: {}",
                 savedHubDelivery.getIdValue(),
                 savedHubDelivery.getOrderId(),
                 savedHubDelivery.getTotalSegments());
+
+        // 드라이버 자동 배정 (Feign 동기 호출)
+        try {
+            DriverAssignResponse assignResponse = hubDriverClient.assignDriver(
+                    DriverAssignRequest.of(savedHubDelivery.getIdValue())
+            );
+
+            if (assignResponse.isSuccess()) {
+                // 배정 성공: 드라이버 ID 설정
+                savedHubDelivery.assignDriver(assignResponse.getDriverId());
+                hubDeliveryRepository.save(savedHubDelivery);
+
+                log.info("드라이버 자동 배정 완료 - hubDeliveryId: {}, driverId: {}, driverName: {}",
+                        savedHubDelivery.getIdValue(),
+                        assignResponse.getDriverId(),
+                        assignResponse.getDriverName());
+            } else {
+                log.warn("드라이버 배정 실패 - hubDeliveryId: {}, 배정 대기 상태 유지",
+                        savedHubDelivery.getIdValue());
+            }
+        } catch (Exception e) {
+            log.error("드라이버 자동 배정 실패 - hubDeliveryId: {}, error: {}",
+                    savedHubDelivery.getIdValue(), e.getMessage(), e);
+            // 배정 실패해도 HubDelivery는 생성 완료 (CREATED 상태 유지)
+        }
 
         return CreateResult.success(
                 savedHubDelivery.getIdValue(),
@@ -105,7 +135,7 @@ public class HubDeliveryCommandService {
     }
 
     /**
-     * 구간 도착 처리
+     * 구간 도착 처리 (드라이버 완료 통지 포함)
      */
     public void arriveSegment(ArriveSegmentCommand command) {
         log.info("구간 도착 처리 - hubDeliveryId: {}, segment: {}, driverId: {}",
@@ -123,9 +153,26 @@ public class HubDeliveryCommandService {
         HubSegment segment = hubDelivery.getSegments().get(command.getSegmentIndex());
         eventPublisher.publishSegmentArrived(hubDelivery, segment);
 
-        // 전체 완료 시 완료 이벤트 발행
+        // 전체 완료 시
         if (hubDelivery.isCompleted()) {
             eventPublisher.publishHubDeliveryCompleted(hubDelivery);
+
+            // 드라이버 배송 완료 통지 (Feign 동기 호출)
+            if (hubDelivery.getDriverId() != null) {
+                try {
+                    hubDriverClient.completeDelivery(
+                            hubDelivery.getDriverId(),
+                            DriverCompleteRequest.of(hubDelivery.getTotalActualDurationMin())
+                    );
+
+                    log.info("드라이버 배송 완료 통지 성공 - driverId: {}, deliveryTime: {}분",
+                            hubDelivery.getDriverId(), hubDelivery.getTotalActualDurationMin());
+                } catch (Exception e) {
+                    log.error("드라이버 배송 완료 통지 실패 - driverId: {}, error: {}",
+                            hubDelivery.getDriverId(), e.getMessage(), e);
+                    // 통지 실패해도 HubDelivery는 완료 처리
+                }
+            }
         }
 
         log.info("구간 도착 완료 - hubDeliveryId: {}, segment: {}/{}, isCompleted: {}",
@@ -136,12 +183,25 @@ public class HubDeliveryCommandService {
     }
 
     /**
-     * 허브 배송 취소 (보상 트랜잭션)
+     * 허브 배송 취소 (보상 트랜잭션, 드라이버 취소 통지 포함)
      */
     public CreateResult cancel(CancelCommand command) {
         log.info("허브 배송 취소 - hubDeliveryId: {}", command.getHubDeliveryId());
 
         HubDelivery hubDelivery = findHubDelivery(command.getHubDeliveryId());
+
+        // 드라이버 취소 통지 (Feign 동기 호출)
+        if (hubDelivery.getDriverId() != null) {
+            try {
+                hubDriverClient.cancelDelivery(hubDelivery.getDriverId());
+
+                log.info("드라이버 취소 통지 성공 - driverId: {}", hubDelivery.getDriverId());
+            } catch (Exception e) {
+                log.error("드라이버 취소 통지 실패 - driverId: {}, error: {}",
+                        hubDelivery.getDriverId(), e.getMessage(), e);
+                // 통지 실패해도 HubDelivery는 취소 처리
+            }
+        }
 
         // 실패 처리
         hubDelivery.fail();
@@ -171,7 +231,6 @@ public class HubDeliveryCommandService {
     private List<HubSegment> createSegments(List<String> routeHubs, String routeInfoJson) {
         List<HubSegment> segments = new ArrayList<>();
 
-        // routeInfoJson 파싱
         List<Map<String, Object>> routeInfoList = parseRouteInfo(routeInfoJson);
 
         for (int i = 0; i < routeHubs.size() - 1; i++) {
@@ -181,7 +240,6 @@ public class HubDeliveryCommandService {
             Long estimatedDistanceM = null;
             Long estimatedDurationMin = null;
 
-            // 경로 상세 정보가 있으면 추출
             if (routeInfoList != null && i < routeInfoList.size()) {
                 Map<String, Object> info = routeInfoList.get(i);
                 estimatedDistanceM = getLongValue(info, "distanceM");
