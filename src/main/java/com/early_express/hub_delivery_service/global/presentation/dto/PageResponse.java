@@ -1,6 +1,6 @@
 package com.early_express.hub_delivery_service.global.presentation.dto;
 
-import com.early_express.order_service.global.common.dto.PageInfo;
+import com.early_express.hub_delivery_service.global.common.dto.PageInfo;
 import lombok.Getter;
 
 import java.util.Collections;

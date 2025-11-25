@@ -1,10 +1,10 @@
 package com.early_express.hub_delivery_service.global.common.utils;
 
-import com.early_express.order_service.global.common.dto.PageInfo;
-import com.early_express.order_service.global.common.dto.PageInfo.SortInfo;
-import com.early_express.order_service.global.presentation.dto.PageResponse;
-import com.early_express.order_service.global.presentation.exception.GlobalErrorCode;
-import com.early_express.order_service.global.presentation.exception.GlobalException;
+import com.early_express.hub_delivery_service.global.common.dto.PageInfo;
+import com.early_express.hub_delivery_service.global.common.dto.PageInfo.SortInfo;
+import com.early_express.hub_delivery_service.global.presentation.dto.PageResponse;
+import com.early_express.hub_delivery_service.global.presentation.exception.GlobalErrorCode;
+import com.early_express.hub_delivery_service.global.presentation.exception.GlobalException;
 import org.springframework.data.domain.Page;
 
 import java.util.List;

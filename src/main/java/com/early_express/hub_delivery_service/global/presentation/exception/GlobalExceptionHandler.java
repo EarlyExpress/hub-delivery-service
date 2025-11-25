@@ -1,6 +1,6 @@
 package com.early_express.hub_delivery_service.global.presentation.exception;
 
-import com.early_express.order_service.global.presentation.dto.ErrorResponse;
+import com.early_express.hub_delivery_service.global.presentation.dto.ErrorResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;

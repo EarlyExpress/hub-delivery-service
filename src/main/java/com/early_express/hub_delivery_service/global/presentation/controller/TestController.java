@@ -1,6 +1,6 @@
 package com.early_express.hub_delivery_service.global.presentation.controller;
 
-import com.early_express.order_service.global.infrastructure.security.UserDetailsImpl;
+import com.early_express.hub_delivery_service.global.infrastructure.security.UserDetailsImpl;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;

@@ -1,6 +1,6 @@
 package com.early_express.hub_delivery_service.global.infrastructure.security;
 
-import com.early_express.order_service.global.infrastructure.security.UserDetailsImpl;
+import com.early_express.hub_delivery_service.global.infrastructure.security.UserDetailsImpl;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.ServletRequest;

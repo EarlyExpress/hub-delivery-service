@@ -1,6 +1,6 @@
 package com.early_express.hub_delivery_service.global.presentation.dto;
 
-import com.early_express.order_service.global.presentation.exception.ErrorCode;
+import com.early_express.hub_delivery_service.global.presentation.exception.ErrorCode;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
