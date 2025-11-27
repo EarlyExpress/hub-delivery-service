@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.RequestBody;
  */
 @FeignClient(
         name = "hub-driver-service",
-        url = "${client.hub-driver-service.url}",
+//        url = "${client.hub-driver-service.url}",
         configuration = HubDriverClientConfig.class
 )
 public interface HubDriverClient {
